@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import Link from 'next/link';
 import DisplayTechIcons from './DisplayTechIcons';
 
-const InterviewCard = ({interviewId,userId,role,type,techstack,createdAt}:InterviewCardProps) => {
+const InterviewCard = ({id,userId,role,type,techstack,createdAt}:InterviewCardProps) => {
 
   const feedback=  null as Feedback|null;
 
@@ -44,12 +44,14 @@ const InterviewCard = ({interviewId,userId,role,type,techstack,createdAt}:Interv
             </div>
             <div className='flex flex-row justify-between'>
                 <DisplayTechIcons techStack={techstack}/>
-                <Button className='btn-primary'>
-                    <Link href={feedback? `/interview/${interviewId}/feedback`:
-                `/interview/${interviewId}`}>
-                        {feedback? 'Check Feedback' : 'View Interview'}
-                    </Link>
-                </Button>
+                <Button className="btn-primary">
+                         <Link href={feedback
+                             ? `/interview/${id}/feedback`
+                             : `/interview/${id}`
+                         }>
+                             {feedback ? 'Check Feedback' : 'View Interview'}
+                         </Link>
+                     </Button>
             </div>
         </div>
     </div>
