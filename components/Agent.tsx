@@ -7,7 +7,7 @@
  import { vapi } from '@/lib/vapi.sdk';
  import {interviewer} from "@/constants";
  import {createFeedback} from "@/lib/actions/general.action";
-
+ import { generateInterviewer } from "@/constants";
  enum CallStatus {
     INACTIVE = 'INACTIVE',
     CONNECTING = 'CONNECTING',
@@ -31,17 +31,71 @@
          const onCallEnd = () => setCallStatus(CallStatus.FINISHED);
  
          const onMessage = (message: Message) => {
-             if(message.type === 'transcript' && message.transcriptType === 'final') {
-                 const newMessage = { role: message.role, content: message.transcript }
- 
-                 setMessages((prev) => [...prev, newMessage]);
-             }
-         }
- 
+            if(message.type === 'transcript' && message.transcriptType === 'final') {
+                const newMessage = { role: message.role, content: message.transcript }
+                setMessages((prev) => [...prev, newMessage]);
+            }
+        
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if((message as any).type === 'tool-calls')  {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const toolCall = (message as any).toolCallList?.[0];
+                if(toolCall?.function?.name === 'generateInterview') {
+                    const args = toolCall.function.arguments;
+                    console.log('🔍 generateInterview called with:', args);
+        
+                    fetch('/api/vapi/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ...args,
+                            userid: userId,
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        console.log('✅ Interview generated:', data);
+        
+                        // Send result back to Vapi so it knows the tool succeeded
+                        vapi.send({
+                            type: 'add-message',
+                            message: {
+                                role: 'tool',
+                                tool_call_id: toolCall.id,
+                                content: data.success 
+                                    ? 'Interview generated successfully! Please thank the user and end the call.' 
+                                    : 'Failed to generate interview.',
+                            }
+                        });
+        
+                        if(data.success) {
+                            setTimeout(() => vapi.stop(), 5000);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('❌ Error:', err);
+                        vapi.send({
+                            type: 'add-message',
+                            message: {
+                                role: 'tool',
+                                tool_call_id: toolCall.id,
+                                content: 'Failed to generate interview due to an error.',
+                            }
+                        });
+                    });
+                }
+            }
+        }
          const onSpeechStart = () => setIsSpeaking(true);
          const onSpeechEnd = () => setIsSpeaking(false);
  
-         const onError = (error: Error) => console.log('Error', error);
+         const onError = (error: Error) => {
+            console.log('🔴 Vapi Error type:', typeof error);
+            console.log('🔴 Vapi Error keys:', Object.keys(error));
+            console.log('🔴 Vapi Error stringified:', JSON.stringify(error, null, 2));
+            console.log('🔴 Vapi Error message:', error.message);
+            console.log('🔴 Vapi Error raw:', error);
+        };
  
          vapi.on('call-start', onCallStart);
          vapi.on('call-end', onCallEnd);
@@ -86,33 +140,49 @@
                 handleGenerateFeedback(messages);
             }
         }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
      }, [messages, callStatus, type, userId]);
  
      const handleCall = async () => {
-         setCallStatus(CallStatus.CONNECTING);
- 
-         if(type ==='generate') {
-            await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
-                variableValues: {
-                    username: userName,
-                    userid: userId,
+        try {
+            setCallStatus(CallStatus.CONNECTING);
+    
+            // 🎤 STEP 1: Explicitly request microphone access
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
+    
+            console.log("🎤 Microphone permission granted");
+    
+            // Optional: stop the stream immediately (Vapi will re-open internally)
+            stream.getTracks().forEach(track => track.stop());
+    
+            // 🎯 STEP 2: Start Vapi ONLY after permission granted
+            if(type === 'generate') {
+                await vapi.start(generateInterviewer(userName, userId!));
+            } else {
+                let formattedQuestions = '';
+                if(questions) {
+                    formattedQuestions = questions
+                        .map((question) => `- ${question}`)
+                        .join('\n');
                 }
-            })
-        } else {
-            let formattedQuestions = '';
-
-            if(questions) {
-                formattedQuestions = questions
-                    .map((question) => `- ${question}`)
-                    .join('\n');
+    
+                await vapi.start(interviewer, {
+                    variableValues: {
+                        questions: formattedQuestions
+                    }
+                });
             }
-            await vapi.start(interviewer, {
-                variableValues: {
-                    questions: formattedQuestions
-                }
-            })
+    
+        } catch (error) {
+            console.error("❌ Microphone access denied or error:", error);
+    
+            alert("Microphone access is required to start the interview. Please allow microphone permission.");
+            
+            setCallStatus(CallStatus.INACTIVE);
         }
-     }
+    };
  
      const handleDisconnect = async () => {
          setCallStatus(CallStatus.FINISHED);

@@ -228,3 +228,63 @@ export const dummyInterviews: Interview[] = [
       createdAt: "2024-03-14T15:30:00Z",
     },
   ];
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  export const generateInterviewer = (userName: string, userId: string): CreateAssistantDTO => ({
+    name: "Interview Generator",
+    firstMessage: `Hello ${userName}! Let's go ahead and prepare for your interview. I'll ask you a few questions and generate a perfect interview for you. Are you ready?`,
+    transcriber: {
+        provider: "deepgram",
+        model: "nova-2",
+        language: "en",
+    },
+    voice: {
+        provider: "11labs",
+        voiceId: "sarah",
+        stability: 0.4,
+        similarityBoost: 0.8,
+        speed: 0.9,
+        style: 0.5,
+        useSpeakerBoost: true,
+    },
+    model: {
+        provider: "openai",
+        model: "gpt-4",
+        messages: [
+            {
+                role: "system",
+                content: `You are an AI assistant that collects information to generate a custom job interview. 
+                
+Your job is to ask the user the following questions one by one, in a friendly and conversational tone:
+1. What job role are they interviewing for? (e.g. Frontend Developer, Backend Engineer)
+2. What type of interview do they want? (Technical, Behavioural, or Mixed)
+3. What experience level? (Junior, Mid, Senior)
+4. How many questions do they want? (between 5 and 10)
+5. What is their tech stack? (e.g. React, Node.js, MongoDB)
+
+Once you have all 5 answers, call the generateInterview function with the collected data.
+
+Keep responses short and conversational. This is a voice conversation.`,
+            },
+        ],
+        tools: [
+            {
+                type: "function",
+                function: {
+                    name: "generateInterview",
+                    description: "Generate the interview once all details are collected",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            role: { type: "string" },
+                            type: { type: "string" },
+                            level: { type: "string" },
+                            amount: { type: "number" },
+                            techstack: { type: "string" },
+                        },
+                        required: ["role", "type", "level", "amount", "techstack"],
+                    },
+                },
+            },
+        ],
+    },
+});
