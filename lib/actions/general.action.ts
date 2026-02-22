@@ -1,11 +1,11 @@
 'use server';
 
-import { db } from "@/firebase/admin";
+import { getFirebaseAdmin } from "@/firebase/admin";
 
 export async function getInterviewsByUserId(userId: string | undefined): Promise<Interview[]> {
     // console.log("🔍 [getInterviewsByUserId] CALLED");
     // console.log("🔍 [getInterviewsByUserId] userId received:", userId);
-
+    const { db } = getFirebaseAdmin();
     if (!userId) {
         console.warn("⚠️ [getInterviewsByUserId] userId is undefined or empty — returning []");
         return [];
@@ -48,7 +48,7 @@ export async function getLatestInterviews(params: GetLatestInterviewsParams): Pr
     // console.log("🔍 [getLatestInterviews] params received:", JSON.stringify(params, null, 2));
 
     const { userId, limit = 20 } = params;
-
+    const { db } = getFirebaseAdmin();
     if (!userId) {
         console.warn("⚠️ [getLatestInterviews] userId is undefined or empty — returning []");
         return [];
@@ -92,6 +92,7 @@ export async function getInterviewById(id: string): Promise<Interview | null> {
     // console.log("🔍 [getInterviewById] CALLED");
     // console.log("🔍 [getInterviewById] id received:", id);
 
+    const { db } = getFirebaseAdmin();
     if (!id) {
         console.warn("⚠️ [getInterviewById] id is undefined or empty — returning null");
         return null;
@@ -268,6 +269,7 @@ CRITICAL: Return ONLY the JSON object above with actual values. No markdown, no 
 
         // console.log("📡 [createFeedback] Saving feedback to Firestore...");
 
+        const { db } = getFirebaseAdmin();
         const feedback = await db.collection('feedback').add({
             interviewId,
             userId,
@@ -303,46 +305,46 @@ CRITICAL: Return ONLY the JSON object above with actual values. No markdown, no 
     }
 }
 
-export async function getFeedbackByInterviewId(params: GetFeedbackByInterviewIdParams): Promise<Feedback | null> {
-    // console.log("🔍 [getFeedbackByInterviewId] CALLED");
-    // console.log("🔍 [getFeedbackByInterviewId] params received:", JSON.stringify(params, null, 2));
-
+export async function getFeedbackByInterviewId(
+    params: GetFeedbackByInterviewIdParams
+  ): Promise<Feedback | null> {
+  
+    const { db } = getFirebaseAdmin();
     const { interviewId, userId } = params;
-
+  
     if (!interviewId || !userId) {
-        console.warn("⚠️ [getFeedbackByInterviewId] Missing interviewId or userId — returning null");
-        return null;
+      console.warn("⚠️ Missing interviewId or userId — returning null");
+      return null;
     }
-
+  
     try {
-        // console.log("📡 [getFeedbackByInterviewId] Executing Firestore query: collection=feedback, interviewId ==", interviewId, "userId ==", userId);
-
-        const snapshot = await db
-            .collection('feedback')
-            .where('interviewId', '==', interviewId)
-            .where('userId', '==', userId)
-            .limit(1)
-            .get();
-
-        // console.log("📦 [getFeedbackByInterviewId] snapshot.empty:", snapshot.empty);
-        // console.log("📦 [getFeedbackByInterviewId] snapshot.size:", snapshot.size);
-
-        if (snapshot.empty) {
-            console.warn("⚠️ [getFeedbackByInterviewId] No feedback found for interviewId:", interviewId, "userId:", userId);
-            return null;
-        }
-
-        const feedbackDoc = snapshot.docs[0];
-        // console.log("📄 [getFeedbackByInterviewId] feedbackDoc id:", feedbackDoc.id);
-        // console.log("📄 [getFeedbackByInterviewId] feedbackDoc data:", JSON.stringify(feedbackDoc.data(), null, 2));
-
-        return {
-            id: feedbackDoc.id,
-            ...feedbackDoc.data()
-        } as Feedback;
-
-    } catch (error) {
-        console.error("❌ [getFeedbackByInterviewId] Firestore error:", error);
+      const snapshot = await db
+        .collection('feedback')
+        .where('interviewId', '==', interviewId)
+        .where('userId', '==', userId)
+        .limit(1)
+        .get();
+  
+      // ✅ IMPORTANT FIX
+      if (snapshot.empty) {
+        console.warn(
+          "⚠️ No feedback found for interviewId:",
+          interviewId,
+          "userId:",
+          userId
+        );
         return null;
+      }
+  
+      const feedbackDoc = snapshot.docs[0];
+  
+      return {
+        id: feedbackDoc.id,
+        ...feedbackDoc.data()
+      } as Feedback;
+  
+    } catch (error) {
+      console.error("❌ getFeedbackByInterviewId error:", error);
+      return null;
     }
-}
+  }

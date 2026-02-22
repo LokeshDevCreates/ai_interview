@@ -1,13 +1,13 @@
 'use server';
 
-import { db, auth } from "@/firebase/admin";
+import { getFirebaseAdmin } from "@/firebase/admin";
 import { cookies } from "next/headers";
 
 const ONE_WEEK = 60 * 60 * 24 * 7;
 
 export async function signUp(params: SignUpParams) {
     const { uid, name, email } = params;
-
+    const { db } = getFirebaseAdmin(); 
     try {
         const userRecord = await db.collection('users').doc(uid).get();
 
@@ -49,6 +49,7 @@ export async function signUp(params: SignUpParams) {
 export async function signIn(params: SignInParams) {
     const { email, idToken } = params;
 
+    const { auth } = getFirebaseAdmin();
     try {
         const userRecord = await auth.getUserByEmail(email);
 
@@ -77,7 +78,7 @@ export async function signIn(params: SignInParams) {
 
 export async function setSessionCookie(idToken: string) {
     const cookieStore = await cookies();
-
+    const { auth } = getFirebaseAdmin();
     const sessionCookie = await auth.createSessionCookie(idToken, {
         expiresIn: ONE_WEEK * 1000,
     });
@@ -94,7 +95,8 @@ export async function setSessionCookie(idToken: string) {
 export async function getCurrentUser(): Promise<User | null> {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get('session')?.value;
-
+    const { db } = getFirebaseAdmin();
+    const { auth } = getFirebaseAdmin();
     if (!sessionCookie) return null;
 
     try {
